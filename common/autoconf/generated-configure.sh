@@ -714,6 +714,7 @@ SET_EXECUTABLE_ORIGIN
 SHARED_LIBRARY_FLAGS
 CXX_FLAG_REORDER
 C_FLAG_REORDER
+STATIC_BUILD
 SYSROOT_LDFLAGS
 SYSROOT_CFLAGS
 RC_FLAGS
@@ -1013,7 +1014,6 @@ infodir
 docdir
 oldincludedir
 includedir
-runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -1086,6 +1086,7 @@ with_import_hotspot
 with_toolchain_type
 with_toolchain_version
 with_jtreg
+enable_static_build
 with_extra_cflags
 with_extra_cxxflags
 with_extra_ldflags
@@ -1256,7 +1257,6 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
-runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1509,15 +1509,6 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
-  -runstatedir | --runstatedir | --runstatedi | --runstated \
-  | --runstate | --runstat | --runsta | --runst | --runs \
-  | --run | --ru | --r)
-    ac_prev=runstatedir ;;
-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
-  | --run=* | --ru=* | --r=*)
-    runstatedir=$ac_optarg ;;
-
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1655,7 +1646,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir runstatedir
+		libdir localedir mandir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1808,7 +1799,6 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -1858,6 +1848,7 @@ Optional Features:
   --enable-unlimited-crypto
                           Enable unlimited crypto policy [disabled]
   --disable-jfr           Disable Java Flight Recorder support [enabled]
+  --enable-static-build   enable static library build [disabled]
   --disable-debug-symbols disable generation of debug symbols [enabled]
   --disable-zip-debug-info
                           disable zipping of debug-info files [enabled]
@@ -3978,6 +3969,13 @@ pkgadd_help() {
 
 
 
+################################################################################
+#
+# Static build support.  When enabled will generate static
+# libraries instead of shared libraries for all JDK libs.
+#
+
+
 # Support for customization of the build process. Some build files
 # will include counterparts from this location, if they exist. This allows
 # for a degree of customization of the build targets and the rules/recipes
@@ -4394,7 +4392,7 @@ VS_SDK_PLATFORM_NAME_2017=
 #CUSTOM_AUTOCONF_INCLUDE
 
 # Do not change or remove the following line, it is needed for consistency checks:
-DATE_WHEN_GENERATED=1623274143
+DATE_WHEN_GENERATED=1678422714
 
 ###############################################################################
 #
@@ -41692,6 +41690,26 @@ $as_echo "$ac_cv_c_bigendian" >&6; }
 
 # Configure flags for the tools
 
+  # Check whether --enable-static-build was given.
+if test "${enable_static_build+set}" = set; then :
+  enableval=$enable_static_build;
+fi
+
+  STATIC_BUILD=false
+  if test "x$enable_static_build" = "xyes"; then
+    STATIC_BUILD=true
+  elif test "x$enable_static_build" = "xno"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking if static build is enabled" >&5
+$as_echo_n "checking if static build is enabled... " >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+  elif test "x$enable_static_build" != "x"; then
+    as_fn_error $? "--enable-static-build can only be assigned \"yes\" or \"no\"" "$LINENO" 5
+  fi
+
+
+
+
   ###############################################################################
   #
   # How to compile shared libraries.
@@ -42048,6 +42066,23 @@ fi
   LEGACY_EXTRA_CXXFLAGS="$LEGACY_EXTRA_CXXFLAGS $with_extra_cxxflags"
   LEGACY_EXTRA_LDFLAGS="$LEGACY_EXTRA_LDFLAGS $with_extra_ldflags"
   LEGACY_EXTRA_ASFLAGS="$with_extra_asflags"
+
+  if test "x$STATIC_BUILD" = xtrue; then
+    CFLAGS_JDK="${CFLAGS_JDK} $with_extra_cflags -DSTATIC_BUILD=1"
+    CXXFLAGS_JDK="${CXXFLAGS_JDK} $with_extra_cxxflags -DSTATIC_BUILD=1"
+    LEGACY_EXTRA_CFLAGS="${LEGACY_EXTRA_CFLAGS} $with_extra_cflags -DSTATIC_BUILD=1"
+    LEGACY_EXTRA_CXXFLAGS="${LEGACY_EXTRA_CXXFLAGS} $with_extra_cxxflags -DSTATIC_BUILD=1"
+    if test "x$TOOLCHAIN_TYPE" = xgcc; then
+      CFLAGS_SECTIONS="-ffunction-sections -fdata-sections"
+      CFLAGS_JDK="${CFLAGS_JDK} ${CFLAGS_SECTIONS}"
+      LEGACY_EXTRA_CFLAGS="${LEGACY_EXTRA_CFLAGS} ${CFLAGS_SECTIONS}"
+    fi
+    if test "x$TOOLCHAIN_TYPE" = xclang; then
+      CFLAGS_SECTIONS="-ffunction-sections -fdata-sections"
+      CFLAGS_JDK="${CFLAGS_JDK} ${CFLAGS_SECTIONS}"
+      LEGACY_EXTRA_CFLAGS="${LEGACY_EXTRA_CFLAGS} ${CFLAGS_SECTIONS}"
+    fi
+  fi
 
 
 
